@@ -9,8 +9,8 @@ load_dotenv()
 # 初始化客户端 (保持 Day 1/2 的代理修复逻辑)
 http_client = httpx.Client(trust_env=False)
 client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url=os.getenv("DEEPSEEK_BASE_URL"),
+    api_key=os.getenv("ZHIPUAI_API_KEY"),
+    base_url=os.getenv("ZHIPUAI_BASE_URL"),
     http_client=http_client
 )
 
@@ -20,7 +20,7 @@ def get_embedding(text: str):
     # 如果 DeepSeek 报错，可以临时使用 OpenAI 的 'text-embedding-3-small' 
     # 或者本地库。这里假设你使用支持 embedding 的接口。
     response = client.embeddings.create(
-        model="text-embedding-3-small", # 如果用 DeepSeek 需确认其模型名
+        model="embedding-3", # 如果用 DeepSeek 需确认其模型名
         input=text
     )
     return response.data[0].embedding
