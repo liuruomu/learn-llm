@@ -1,13 +1,14 @@
 import os 
 import httpx
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional,List
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, HumanMessage
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 load_dotenv()
@@ -22,7 +23,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DEBUG_AGENT")
 
 app = FastAPI()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # 生产环境建议改为具体的域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # 初始化 LLM
 http_client = httpx.Client(trust_env=False)
 llm = ChatOpenAI(
@@ -34,30 +41,27 @@ llm = ChatOpenAI(
 )
 
 
-class ChatRequest(BaseModel):
-    message: str
+class Message(BaseModel):
+    role: str
+    content: str
 
+class ChatRequest(BaseModel):
+    messages: List[Message] # SDK 默认发送的是 messages 数组
 # --- 核心：异步生成器函数 ---
 async def generate_chat_responses(message: str):
-    """
-    这个函数会像挤牙膏一样，把 AI 的回复一节一节地‘吐’出来
-    """
-    # 使用 LangChain 的 astream 方法进行流式调用
     async for chunk in llm.astream([HumanMessage(content=message)]):
-        # chunk.content 是当前这一小块文本内容
         content = chunk.content
         if content:
-            # 按照 SSE 的标准格式发送：data: 内容\n\n
-            yield f"data: {content}\n\n"
-            # 稍微停顿一下（可选），模拟人类打字感
-            await asyncio.sleep(0.01)
+            # 直接返回文本内容，不要加 "data:" 和 "\n\n"
+            yield content
 
 @app.post("/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest):
     # 使用 StreamingResponse 返回生成器
     # media_type 必须是 text/event-stream
+    last_message = request.messages[-1].content
     return StreamingResponse(
-        generate_chat_responses(request.message), 
+        generate_chat_responses(last_message), 
         media_type="text/event-stream"
     )
 
